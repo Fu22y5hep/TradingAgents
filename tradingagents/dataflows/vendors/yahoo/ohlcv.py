@@ -23,6 +23,24 @@ MAX_OHLCV_STALE_DAYS = 10
 # at all (weekend, holiday) cannot trigger a download on every call.
 OHLCV_CACHE_TTL_SECONDS = 900
 
+# Rows of history each supported indicator needs for a full window. stockstats
+# rolls with ``min_periods=1``, so without this a recent listing's "200-day"
+# average is the mean of whatever sessions exist.
+INDICATOR_MIN_ROWS = {
+    "close_10_ema": 10, "close_50_sma": 50, "close_200_sma": 200,
+    "macd": 26, "macds": 34, "macdh": 34,  # signal: 9 periods of the 26-period MACD
+    "rsi": 15, "mfi": 15,  # 14 changes need 15 rows
+    "boll": 20, "boll_ub": 20, "boll_lb": 20,
+    "atr": 14, "vwma": 14,
+}
+
+
+def compute_indicator(stock_df: pd.DataFrame, indicator: str) -> None:
+    """Calculate ``indicator`` on a stockstats frame, NaN until its window has filled."""
+    values = stock_df[indicator]  # triggers stockstats to calculate the indicator
+    filled = pd.RangeIndex(len(stock_df)) >= INDICATOR_MIN_ROWS.get(indicator, 1) - 1
+    stock_df[indicator] = values.where(filled)
+
 
 def _ensure_date_column(data: pd.DataFrame) -> pd.DataFrame:
     """Normalize the date column to ``Date``.

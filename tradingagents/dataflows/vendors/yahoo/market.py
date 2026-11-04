@@ -10,7 +10,11 @@ from stockstats import wrap
 from tradingagents.dataflows.errors import NoMarketDataError, VendorError
 from tradingagents.dataflows.symbols import normalize_symbol
 from tradingagents.dataflows.vendors.yahoo.common import price_text, raise_for_empty, yf_retry
-from tradingagents.dataflows.vendors.yahoo.ohlcv import _assert_ohlcv_not_stale, load_ohlcv
+from tradingagents.dataflows.vendors.yahoo.ohlcv import (
+    _assert_ohlcv_not_stale,
+    compute_indicator,
+    load_ohlcv,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -218,7 +222,7 @@ def _get_stock_stats_bulk(
     df = wrap(data)
     df["Date"] = df["Date"].dt.strftime("%Y-%m-%d")
 
-    df[indicator]  # This triggers stockstats to calculate the indicator
+    compute_indicator(df, indicator)
 
     result_dict = {}
     for _, row in df.iterrows():
@@ -284,11 +288,11 @@ def get_stock_stats(
     df["Date"] = df["Date"].dt.strftime("%Y-%m-%d")
     as_of_str = pd.to_datetime(as_of_date).strftime("%Y-%m-%d")
 
-    df[indicator]  # trigger stockstats to calculate the indicator
+    compute_indicator(df, indicator)
     matching_rows = df[df["Date"].str.startswith(as_of_str)]
 
     if not matching_rows.empty:
         indicator_value = matching_rows[indicator].values[0]
-        return indicator_value
+        return "N/A" if pd.isna(indicator_value) else indicator_value
     else:
         return "N/A: Not a trading day (weekend or holiday)"

@@ -18,7 +18,7 @@ from stockstats import wrap
 from tradingagents.dataflows.errors import NoMarketDataError
 from tradingagents.dataflows.symbols import normalize_symbol
 from tradingagents.dataflows.vendors.yahoo.common import price_text
-from tradingagents.dataflows.vendors.yahoo.ohlcv import load_ohlcv
+from tradingagents.dataflows.vendors.yahoo.ohlcv import compute_indicator, load_ohlcv
 
 # A fixed, common indicator set so the snapshot is the same shape every run.
 DEFAULT_SNAPSHOT_INDICATORS: tuple[str, ...] = (
@@ -81,7 +81,7 @@ def build_verified_market_snapshot(
     indicator_values: dict[str, str] = {}
     for name in selected:
         try:
-            stock_df[name]  # triggers stockstats calculation
+            compute_indicator(stock_df, name)
             indicator_values[name] = _fmt(stock_df.iloc[-1][name])
         except Exception as exc:  # noqa: BLE001 — one bad indicator shouldn't sink the snapshot
             indicator_values[name] = f"N/A ({type(exc).__name__})"
@@ -97,6 +97,7 @@ def build_verified_market_snapshot(
         f"- Requested analysis date: {as_of_date}",
         f"- Latest trading row used: {latest_date}",
         "- Rows after the requested analysis date are excluded before verification.",
+        f"- History available: {len(df)} trading rows; an indicator needing more reads N/A.",
         "",
         "### Latest verified OHLCV row",
         "",
