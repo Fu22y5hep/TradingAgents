@@ -7,6 +7,7 @@
 
 from unittest import mock
 
+import pandas as pd
 import pytest
 
 from tradingagents.dataflows import date_window
@@ -77,3 +78,44 @@ def test_income_figures_without_a_stated_reporting_currency_are_printed_bare():
     out = _fundamentals({"longName": "X", "currency": "USD", "marketCap": 1000, "totalRevenue": 50})
 
     assert "Market Cap: 1000 USD" in out and "Revenue (TTM): 50\n" in out + "\n"
+
+
+def _listed(weekdays_ago: int) -> int:
+    """Yahoo's first-trade timestamp for a listing this many weekdays back."""
+    listed = pd.Timestamp(TODAY) - pd.offsets.BDay(weekdays_ago)
+    return int(listed.timestamp() * 1000)
+
+
+@pytest.mark.unit
+def test_an_average_longer_than_the_listing_reads_na():
+    """Yahoo averages whatever sessions exist, so a recent listing's "200 day"
+    average is not one."""
+    out = _fundamentals({"longName": "SpaceX", "currency": "USD",
+                         "firstTradeDateMilliseconds": _listed(100),
+                         "fiftyDayAverage": 149.68, "twoHundredDayAverage": 145.59})
+
+    assert "50 Day Average: 149.68 USD" in out
+    assert "200 Day Average: N/A" in out and "145.59" not in out
+
+
+@pytest.mark.unit
+def test_an_established_listing_keeps_its_averages():
+    out = _fundamentals({"longName": "NVIDIA", "currency": "USD",
+                         "firstTradeDateMilliseconds": _listed(300),
+                         "fiftyDayAverage": 221.4, "twoHundredDayAverage": 204.27})
+
+    assert "200 Day Average: 204.27 USD" in out
+
+
+@pytest.mark.unit
+def test_an_unknown_listing_date_keeps_the_averages():
+    out = _fundamentals({"longName": "Shell plc", "currency": "USD", "twoHundredDayAverage": 204.27})
+
+    assert "200 Day Average: 204.27 USD" in out
+
+
+@pytest.mark.unit
+def test_an_absent_average_stays_left_out_on_a_recent_listing():
+    out = _fundamentals({"longName": "SpaceX", "firstTradeDateMilliseconds": _listed(100)})
+
+    assert "200 Day Average" not in out

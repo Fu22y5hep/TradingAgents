@@ -1,5 +1,6 @@
 from typing import Annotated
 
+import pandas as pd
 import yfinance as yf
 
 from tradingagents.dataflows.date_window import (
@@ -60,6 +61,17 @@ def get_fundamentals(
         value = info.get(key)
         return None if value is None else f"{value} {currency}" if currency else value
 
+    def average(key, sessions):
+        # Yahoo averages whatever sessions exist, so a recent listing's "200 day"
+        # average is not one. Weekdays can only overstate the sessions traded, so
+        # a full average is never withheld.
+        listed = info.get("firstTradeDateMilliseconds")
+        if listed is not None and info.get(key) is not None:
+            today = pd.Timestamp(as_of_date or "today")
+            if len(pd.bdate_range(pd.to_datetime(listed, unit="ms"), today)) < sessions:
+                return f"N/A (under {sessions} sessions since listing)"
+        return money(key, quote)
+
     fields = [
         ("Name", info.get("longName")),
         ("Sector", info.get("sector")),
@@ -75,8 +87,8 @@ def get_fundamentals(
         ("Beta", info.get("beta")),
         ("52 Week High", money("fiftyTwoWeekHigh", quote)),
         ("52 Week Low", money("fiftyTwoWeekLow", quote)),
-        ("50 Day Average", money("fiftyDayAverage", quote)),
-        ("200 Day Average", money("twoHundredDayAverage", quote)),
+        ("50 Day Average", average("fiftyDayAverage", 50)),
+        ("200 Day Average", average("twoHundredDayAverage", 200)),
         ("Revenue (TTM)", money("totalRevenue", reported)),
         ("Gross Profit", money("grossProfits", reported)),
         ("EBITDA", money("ebitda", reported)),
